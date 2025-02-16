@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
-from .database import CSVDatabase
-from .models import SearchParams, DataResponse
+from .schemas.database import CSVDatabase
+from .models.basic_model import SearchParams, DataResponse
 import os
 
 app = FastAPI(title="CSV Database API")
@@ -8,7 +8,7 @@ app = FastAPI(title="CSV Database API")
 # Initialize database on startup
 @app.on_event("startup")
 async def startup_event():
-    csv_path = os.getenv("CSV_PATH", "db/def00_19_v1.csv")
+    csv_path = os.path.join(os.path.dirname(__file__), "db/def00_19_v1.csv")
     app.state.db = CSVDatabase(csv_path)
 
 @app.get("/")

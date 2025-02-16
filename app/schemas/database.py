@@ -12,16 +12,50 @@ class CSVDatabase:
 
     def load_data(self) -> None:
         """Load CSV data into memory using chunks for large files."""
-        try:
-            # Read CSV in chunks and concatenate
-            chunks = []
-            for chunk in pd.read_csv(self.csv_path, chunksize=100000):
-                chunks.append(chunk)
-            self.df = pd.concat(chunks)
-            logger.info(f"Successfully loaded {len(self.df)} records from {self.csv_path}")
-        except Exception as e:
-            logger.error(f"Error loading CSV file: {str(e)}")
-            raise
+        encodings_to_try = [
+            'latin1',      # Also known as iso-8859-1
+            'utf-8',       # Standard Unicode encoding
+            'cp1252',      # Windows Western European
+            'iso-8859-15', # Western European with euro sign
+        ]
+        
+        for encoding in encodings_to_try:
+            try:
+                logger.info(f"Attempting to load CSV with {encoding} encoding...")
+                
+                # First, read a small sample to get column names
+                sample = pd.read_csv(self.csv_path, nrows=5, encoding=encoding)
+                columns = sample.columns
+                
+                # Create a dtype dictionary for columns with mixed types
+                dtypes = {}
+                # Treat columns 12 and 13 as strings to avoid mixed type issues
+                if len(columns) > 13:
+                    dtypes[columns[12]] = str
+                    dtypes[columns[13]] = str
+                
+                chunks = []
+                for chunk in pd.read_csv(
+                    self.csv_path,
+                    chunksize=100000,
+                    encoding=encoding,
+                    on_bad_lines='warn',
+                    low_memory=False,
+                    dtype=dtypes
+                ):
+                    chunks.append(chunk)
+                self.df = pd.concat(chunks)
+                logger.info(f"Successfully loaded {len(self.df)} records using {encoding} encoding")
+                return
+            except UnicodeDecodeError:
+                logger.warning(f"Failed to decode with {encoding}, trying next encoding...")
+                continue
+            except Exception as e:
+                logger.error(f"Error loading CSV file with {encoding}: {str(e)}")
+                continue
+        
+        # If we get here, none of the encodings worked
+        raise ValueError("Failed to load CSV file with any of the attempted encodings")
 
     def search(self, column: str, value: str, limit: int = 100) -> tuple[int, List[Dict[str, Any]]]:
         """Search for records where column matches value."""
